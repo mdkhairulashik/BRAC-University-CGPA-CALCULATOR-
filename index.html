@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CGPA Calculator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="header-banner" role="banner">
+        <div class="header-content">
+            <h1 class="main-title">BRACU CGPA Calculator</h1>
+            <div class="subtitle">Calculate your Cumulative Grade Point Average with Retake Options</div>
+        </div>
+    </header>
+    <main class="container" role="main">
+        <form id="cgpaForm" autocomplete="off">
+            <section id="previousCgpaSection" style="margin-bottom:1.5rem;display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;">
+                <h2 style="font-size:1.1rem;font-weight:700;color:#6366f1;margin-bottom:0.7rem;margin-top:0;">Previous Academic Record</h2>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <input type="checkbox" id="includePreviousCgpa" aria-label="Include Previous CGPA" style="margin-right:0.5rem;">
+                    <label for="includePreviousCgpa" style="font-weight:600;color:#6366f1;cursor:pointer;white-space:nowrap;">Include Previous CGPA</label>
+                </div>
+            </section>
+            <section id="previousInputs" style="display:none;margin-top:-0.5rem;margin-bottom:1rem;">
+                <div style="display:flex;gap:1rem;">
+                    <input type="number" id="previousCgpa" placeholder="Previous CGPA" min="0" max="4" step="0.01" aria-label="Previous CGPA" style="width:100%;padding:0.6rem 0.8rem;border-radius:0.7rem;border:1.5px solid #a5b4fc;background:#e0edff;"> 
+                    <input type="number" id="previousCredits" placeholder="Previous Credits" min="0" step="1" aria-label="Previous Credits" style="width:100%;padding:0.6rem 0.8rem;border-radius:0.7rem;border:1.5px solid #a5b4fc;background:#e0edff;">
+                </div>
+            </section>
+            <h2 style="font-size:1.1rem;font-weight:700;color:#6366f1;margin-bottom:0.7rem;">Current Courses</h2>
+            <div id="coursesHeader" style="display:flex;gap:0.7rem;margin-bottom:0.5rem;font-weight:600;color:#6366f1;font-size:1rem;">
+                <span class="col-courseid">Course ID</span>
+                <span class="col-credits">Credits</span>
+                <span class="col-grade">Grade</span>
+                <span class="col-type">Type</span>
+                <span class="col-delete"></span>
+            </div>
+            <div id="courses"></div>
+            <div style="display:flex;gap:0.7rem;margin-bottom:0.5rem;">
+                <button type="button" class="add-btn" id="addCourseBtn" style="margin-bottom:0;">+ Add Course</button>
+                <button type="button" class="add-btn" id="addRetakeBtn" style="background:linear-gradient(90deg,#a78bfa 0%,#6366f1 100%);margin-bottom:0;">+ Add Retake</button>
+            </div>
+            <div style="margin-bottom:1.2rem;font-size:0.98rem;color:#fff;background:#2563eb;padding:0.7rem 1rem;border-radius:0.7rem;">
+                <b>How to use retake:</b> First add a regular course with your previous grade, then add a retake with your new grade. Make sure to use the exact same Course ID for both entries.
+            </div>
+            <button type="submit" class="add-btn" style="margin-bottom:0;background:linear-gradient(90deg,#7c3aed 0%,#6366f1 100%)">Calculate CGPA</button>
+            <footer class="footer" style="margin-top:1.5rem;">BRACU CGPA Calculator | Made by MD. KHAIRUL ASHIK</footer>
+        </form>
+        <section class="result" id="resultBox" style="display:none;">
+            <h2>Your CGPA</h2>
+            <div class="cgpa" id="cgpaValue">0.00</div>
+            <div class="grade" id="gradeValue">-</div>
+            <div class="cgpa-details" id="cgpaDetails" style="margin-top:1rem;display:none;font-size:1rem;color:#6366f1;"></div>
+            <div class="cgpa-details" id="creditDetails" style="margin-top:0.5rem;display:none;font-size:1rem;color:#6366f1;"></div>
+            <button type="button" class="print-btn" id="printBtn">Print Results</button>
+        </section>
+    </main>
+    <script src="script.js"></script>
+    <script>
+        cgpaForm.onsubmit = function(e) {
+            e.preventDefault();
+            const rows = getCourseRows();
+            let totalCredits = 0, totalPoints = 0, valid = true;
+            const courseMap = {};
+
+            // Collect all course attempts
+            for (const row of rows) {
+                const { courseId, credits, grade, isRetake } = parseCourseRow(row);
+                if (!courseId || isNaN(credits) || isNaN(grade)) {
+                    valid = false;
+                    continue;
+                }
+                if (!courseMap[courseId]) courseMap[courseId] = [];
+                courseMap[courseId].push({ credits, grade, isRetake });
+            }
+
+            // Previous CGPA and credits
+            let prevCgpa = 0, prevCredits = 0, prevTotalPoints = 0;
+            if (includePreviousCgpa.checked) {
+                prevCgpa = parseFloat(previousCgpaInput.value) || 0;
+                prevCredits = parseFloat(previousCreditsInput.value) || 0;
+                prevTotalPoints = prevCgpa * prevCredits;
+                if (prevCgpa < 0 || prevCgpa > 4 || prevCredits < 0) valid = false;
+            }
+
+            // For each course, handle retake logic
+            for (const courseId in courseMap) {
+                const attempts = courseMap[courseId];
+                const retake = attempts.find(a => a.isRetake);
+                const original = attempts.find(a => !a.isRetake);
+
+                if (retake && includePreviousCgpa.checked && original) {
+                    // Subtract the original attempt from previous CGPA/credits
+                    prevTotalPoints -= (original.grade * original.credits);
+                    prevCredits -= original.credits;
+                    // Add the retake attempt to current term
+                    totalCredits += retake.credits;
+                    totalPoints += retake.credits * retake.grade;
+                } else {
+                    // No retake, just add the latest attempt to current term
+                    const entry = attempts[attempts.length - 1];
+                    totalCredits += entry.credits;
+                    totalPoints += entry.credits * entry.grade;
+                }
+            }
+
+            if (!valid || (totalCredits + prevCredits) === 0) {
+                clearResults();
+                return;
+            }
+            const cgpa = (totalPoints + prevTotalPoints) / (totalCredits + prevCredits);
+            // Show the exact value up to 5 decimal points, no ceiling or rounding
+            cgpaValue.textContent = cgpa.toFixed(5);
+            gradeValue.textContent = getLetterGrade(cgpa);
+            resultBox.style.display = 'block';
+            cgpaDetails.style.display = 'block';
+            cgpaDetails.innerHTML = includePreviousCgpa.checked
+                ? `Previous CGPA: <b>${prevCgpa.toFixed(2)}</b> (${(prevCredits).toFixed(2)} credits)`
+                : '';
+            creditDetails.style.display = 'block';
+            creditDetails.innerHTML = `Total Credits: <b>${(totalCredits + prevCredits).toFixed(2)}</b>`;
+            resultBox.scrollIntoView({behavior:'smooth'});
+        };
+    </script>
+</body>
+</html>
